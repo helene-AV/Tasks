@@ -28,7 +28,7 @@ set(HEADERS
 )
 set(PRIVATE_HEADERS utils.h GenQPUtils.h QLDQPSolver.h)
 
-if(${eigen-lssol_FOUND})
+if(WITH_LSSOL)
   list(APPEND SOURCES LSSOLQPSolver.cpp)
   list(APPEND PRIVATE_HEADERS LSSOLQPSolver.h)
 endif()
@@ -40,7 +40,7 @@ target_link_libraries(
   Tasks PUBLIC RBDyn::RBDyn sch-core::sch-core eigen-qld::eigen-qld Boost::timer
                Boost::disable_autolinking Boost::dynamic_linking
 )
-if(${eigen-lssol_FOUND})
+if(WITH_LSSOL)
   target_link_libraries(Tasks PUBLIC eigen-lssol::eigen-lssol)
   target_compile_definitions(Tasks PRIVATE -DLSSOL_SOLVER_FOUND)
 endif()

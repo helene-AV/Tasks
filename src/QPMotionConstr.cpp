@@ -7,6 +7,8 @@
 
 // includes
 // Eigen
+#include <ostream>
+#include <string>
 #include <unsupported/Eigen/Polynomials>
 
 // RBDyn
@@ -16,6 +18,10 @@
 // Tasks
 #include "Tasks/Bounds.h"
 #include "utils.h"
+
+#include <fstream>
+#include <iomanip> // For std::setw
+#include <iostream>
 
 namespace tasks
 {
@@ -122,6 +128,110 @@ void MotionConstrCommon::computeTorque(const Eigen::VectorXd & alphaD, const Eig
   curTorque_ = fd_.H() * alphaD.segment(alphaDBegin_, nrDof_);
   curTorque_ += fd_.C();
   curTorque_ += A_.block(0, lambdaBegin_, nrDof_, A_.cols() - lambdaBegin_) * lambda;
+
+  for(std::size_t i = 0; i < cont_.size(); ++i)
+  {
+    ContactData & cd = cont_[i];
+    for(std::size_t j = 0; j < cd.points.size(); ++j)
+    {
+      std::ofstream file("force" + std::to_string(j) + std::to_string(i) + ".csv");
+      std::ofstream coeff("coeff" + std::to_string(j) + std::to_string(i) + ".csv");
+
+      if(file.is_open() and coeff.is_open())
+      {
+        std::cout << " reappered" << std::endl;
+        std::cout << "segment" << i << j << ": " << std::endl;
+        std::cout << lambda.segment(4 * j + 16 * i, 4) << std::endl;
+        std::cout << "----" << std::endl;
+
+        auto & matrix = cd.minusGenerators[j];
+        auto & lambda_segment = lambda.segment(4 * j + 16 * i, 4);
+
+        file << cd.minusGenerators[j] * lambda.segment(4 * j + 16 * i, 4);
+        coeff << cd.minusGenerators[j];
+        std::cout << "Success force" << i << j << std::endl;
+        std::cout << "Success coeff" << i << j << std::endl;
+        file.close();
+        coeff.close();
+      }
+      else
+      {
+        std::cout << "Error force" << i << j << std::endl;
+        std::cout << "Error coeff" << i << j << std::endl;
+      }
+    }
+  }
+
+  std::ofstream file0("fd_H.csv");
+
+  if(file0.is_open())
+  {
+    file0 << fd_.H();
+    file0.close();
+    std::cout << "success fd_H" << std::endl;
+  }
+  else { std::cout << "error with fd_H" << std::endl; }
+
+  std::ofstream file1("alphaDsegment.csv");
+
+  if(file1.is_open())
+  {
+    file1 << alphaD.segment(alphaDBegin_, nrDof_);
+    file1.close();
+    std::cout << "success alphaD" << std::endl;
+  }
+  else { std::cout << "error with alphaDsegment" << std::endl; }
+
+  std::ofstream file2("fd_C.csv");
+
+  if(file2.is_open())
+  {
+    file2 << fd_.C();
+    file2.close();
+    std::cout << "success fd_C" << std::endl;
+  }
+  else { std::cout << "error with fd_C" << std::endl; }
+
+  std::ofstream file3("A.csv");
+
+  if(file3.is_open())
+  {
+    file3 << A_.block(0, lambdaBegin_, nrDof_, A_.cols() - lambdaBegin_);
+    file3.close();
+    std::cout << "success A" << std::endl;
+  }
+  else { std::cout << "error with A" << std::endl; }
+
+  std::cout << "size lambda: " << lambda.size() / 8 << std::endl;
+  for(int k = 0; k < lambda.size() / 8; k++)
+  {
+    std::ofstream file4("lambda" + std::to_string(k) + ".csv");
+    if(file4.is_open())
+    {
+      file4 << lambda.segment(4 * k, 4);
+      file4.close();
+      std::cout << "success lambda" << k << std::endl;
+    }
+    else { std::cout << "error with lambda" << k << std::endl; }
+  }
+
+  std::ofstream file5("lambda.csv");
+
+  if(file5.is_open())
+  {
+    file5 << lambda;
+    std::cout << "success lambda" << std::endl;
+  }
+  else { std::cout << "error with lambda" << std::endl; }
+
+  std::ofstream file6("curTorque.csv");
+
+  if(file6.is_open())
+  {
+    file6 << curTorque_;
+    std::cout << "success current torque" << std::endl;
+  }
+  else { std::cout << "error with current torque" << std::endl; }
 }
 
 const Eigen::VectorXd & MotionConstrCommon::torque() const
@@ -154,6 +264,7 @@ void MotionConstrCommon::updateNrVars(const std::vector<rbd::MultiBody> & mbs, c
 
   cont_.clear();
   const auto & cCont = data.allContacts();
+
   for(std::size_t i = 0; i < cCont.size(); ++i)
   {
     const BilateralContact & c = cCont[i];
@@ -191,12 +302,17 @@ void MotionConstrCommon::computeMatrix(const std::vector<rbd::MultiBody> & mbs,
   // fill inertia matrix part
   A_.block(0, alphaDBegin_, nrDof_, nrDof_) = fd_.H();
 
+  std::cout << "cont_.size(): " << cont_.size() << std::endl;
+
   for(std::size_t i = 0; i < cont_.size(); ++i)
   {
     const MatrixXd & jac = cont_[i].jac.bodyJacobian(mb, mbc);
 
     ContactData & cd = cont_[i];
     int lambdaOffset = 0;
+
+    std::cout << "cd.points.size(): " << cd.points.size() << std::endl;
+
     for(std::size_t j = 0; j < cd.points.size(); ++j)
     {
       int nrLambda = int(cd.minusGenerators[j].cols());
@@ -209,6 +325,17 @@ void MotionConstrCommon::computeMatrix(const std::vector<rbd::MultiBody> & mbs,
           (cd.minusGenerators[j].transpose() * jacTrans_.block(3, 0, 3, cd.jac.dof()));
 
       cd.jac.fullJacobian(mb, jacLambda_.block(0, 0, nrLambda, cd.jac.dof()), fullJacLambda_);
+
+      // A_.block(0, lambdaBegin_, nrDof_, A_.cols() - lambdaBegin_)
+
+      std::ofstream file("jac_" + std::to_string(j) + std::to_string(i) + ".csv");
+      if(file.is_open())
+      {
+        file << jacTrans_.block(3, 0, 3, cd.jac.dof());
+        file.close();
+        std ::cout << "success jac_" + std::to_string(j) + std::to_string(i) + ".csv" << std::endl;
+      }
+      else { std::cout << "error with jac_" + std::to_string(j) + std::to_string(i) + ".csv" << std::endl; }
 
       A_.block(0, cd.lambdaBegin + lambdaOffset, nrDof_, nrLambda).noalias() =
           fullJacLambda_.block(0, 0, nrLambda, nrDof_).transpose();

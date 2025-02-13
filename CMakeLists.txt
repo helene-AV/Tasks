@@ -36,11 +36,14 @@ if(NOT WIN32)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic")
 endif()
 
+option(WITH_LSSOL "Use LSSOL" OFF)
+
 add_project_dependency(RBDyn REQUIRED NO_MODULE)
 add_project_dependency(sch-core REQUIRED NO_MODULE)
 add_project_dependency(eigen-qld REQUIRED NO_MODULE)
 find_package(eigen-lssol QUIET NO_MODULE)
-if(${eigen-lssol_FOUND})
+if(${eigen-lssol_FOUND} AND WITH_LSSOL)
+  message(STATUS "eigen lssol FOUND")
   add_project_dependency(eigen-lssol REQUIRED NO_MODULE)
 endif()
 
